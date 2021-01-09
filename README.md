@@ -49,7 +49,8 @@ text file to the user's home dir as: .birthdays-kv-db
 
 # Dependencies
 
-awk
-sed
-openssl
-md5sum (or md5)
+- awk
+- sed
+- openssl
+- md5sum (or md5)
+- mktemp
