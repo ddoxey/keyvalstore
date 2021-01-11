@@ -7,7 +7,7 @@ Private lightweight secure key value store
     $ keyvalstore.sh <key> [<val>]
 ```
 
-If the <val> arguemnt is not provided then it does a lookup and emits
+If the *val* arguemnt is not provided then it does a lookup and emits
 the value to stdout.  Otherwise, the value is stored with the given
 key for later retrieval.
 
