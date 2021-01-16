@@ -26,7 +26,7 @@ function err()
 '
 function md5()
 {
-    echo "$@" | $MD5SUM | awk '{print $1}'
+    echo "$@" | $MD5SUM | $AWK '{print $1}'
 }
 
 : '
@@ -50,7 +50,7 @@ function dec()
 }
 
 : '
-:
+: Create the minimal DB file if absent.
 '
 function initdb()
 {
@@ -63,15 +63,30 @@ function initdb()
 }
 
 : '
+: Print a list of keys.
+'
+function enumerate()
+{
+    local keys="$(retrieve "_keys_")"
+
+    $AWK -F'|' '{
+        for (i = 1; i < NF; i++)
+            if ($i && $i != "_password_")
+                print $i
+    }' <<< "$keys"
+}
+
+: '
 : Retrieve the decrypted value for the given key.
 '
 function retrieve()
 {
     if [[ ! -e "$DB" ]]; then initdb || return 1; fi
 
-    local key="$(md5 "$1")"
+    local key="$($SED 's/|//g' <<< "$1")"
+    local hsh="$(md5 "$key")"
 
-    local line_n=$(grep -n "^${key}[|]" "$DB" | $AWK -F: '{print $1}')
+    local line_n=$(grep -n "^${hsh}[|]" "$DB" | $AWK -F: '{print $1}')
 
     if [[ -n $line_n ]]
     then
@@ -86,23 +101,38 @@ function store()
 {
     if [[ ! -e "$DB" ]]; then initdb || return 1; fi
 
-    local key="$(md5 "$1")"
+    local key="$($SED 's/|//g' <<< "$1")"
     local val="$(enc "$2")"
+    local hsh="$(md5 "$key")"
 
-    local line_n=$(grep -n "^${key}[|]" "$DB" | $AWK -F: '{print $1}')
+    if [[ "$key" != "_keys_" ]]
+    then
+        local keys="$(retrieve "_keys_")"
+
+        if [[ -z $keys ]]; then keys="|"; fi
+
+        if [[ ! "$keys" =~ "|${key}|" ]]
+        then
+            keys="${keys}${key}|"
+
+            store "_keys_" "$keys"
+        fi
+    fi
+
+    local line_n=$(grep -n "^${hsh}[|]" "$DB" | $AWK -F: '{print $1}')
 
     if [[ -n $line_n ]]
     then
         # update
         if [[ -n $MAC ]]
         then
-            $SED -i '' "${line_n}s:^${key}[|].*:${key}|${val}:" "$DB"
+            $SED -i '' "${line_n}s:^${hsh}[|].*:${hsh}|${val}:" "$DB"
         else
-            $SED -i "${line_n}s:^${key}[|].*:${key}|${val}:" "$DB"
+            $SED -i "${line_n}s:^${hsh}[|].*:${hsh}|${val}:" "$DB"
         fi
     else
         # add
-        echo "${key}|${val}" >> "$DB"
+        echo "${hsh}|${val}" >> "$DB"
     fi
 }
 
@@ -121,9 +151,9 @@ function run()
         return $(err "Unable to locate: $(tr 'A-Z' 'a-z' <<< "$dependency")")
     done
 
-    if [[ -z $key ]]
+    if [[ "$key" == "-h" ]]
     then
-        return $(err "USAGE: $(basename "$0") <key> [<val>]")
+        return $(err "USAGE: $(basename "$0") [<key> [<val>]]")
     fi
 
     DB="${HOME}/.$($AWK 'tolower($0)' <<< "$(basename "$0")")-kv-db"
@@ -136,12 +166,16 @@ function run()
 
     local expect="$(retrieve "_password_")"
 
-    if [[ "$PASS" != "$expect" ]]
+    if [[ -n $expect ]] && [[ "$PASS" != "$expect" ]]
     then
         return $(err "access denied")
-    else
-        echo -ne '\b\b\b\b\b\b\b\b\b\b'
     fi
+
+    echo -ne '\b\b\b\b\b\b\b\b\b\b'
+    echo -ne '          '
+    echo -ne '\b\b\b\b\b\b\b\b\b\b'
+
+    if [[ -z $key ]]; then enumerate && return 0; fi
 
     if [[ -z $val ]]
     then
