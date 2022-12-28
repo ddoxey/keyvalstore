@@ -10,7 +10,7 @@ export AWK=$(which awk)
 export SED=$(which sed)
 export MD5SUM=$(which md5sum || which md5)
 export OPENSSL=$(which openssl)
-export MAC="$(uname | $AWK '{if ($1 ~ /darwin/i) { print "TRUE" }}')"
+export MAC="$(uname | $AWK '{if (tolower($1) ~ /darwin/) {print "TRUE"}}')"
 
 
 : '
